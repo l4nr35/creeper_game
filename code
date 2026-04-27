@@ -1,0 +1,163 @@
+import pygame
+import os
+
+pygame.init()
+
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+WHITE = (255, 255, 255)
+BLUE = (100, 150, 255)
+BROWN = (139, 69, 19)
+RED = (255, 0, 0)
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, x, y, image_path):
+        super().__init__()
+        if os.path.exists(image_path):
+            self.image = pygame.image.load(image_path)
+            self.image = pygame.transform.scale(self.image, (40, 40))
+        else:
+            self.image = pygame.Surface((40, 40))
+            self.image.fill(RED)
+        
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.vel_y = 0
+        self.on_ground = False
+
+    def update(self, platforms):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= 5
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += 5
+
+        self.vel_y += 0.8
+        self.rect.y += self.vel_y
+        
+
+        self.on_ground = False
+        for platform in platforms:
+            if self.rect.colliderect(platform.rect) and self.vel_y > 0:
+                self.rect.bottom = platform.rect.top
+                self.vel_y = 0
+                self.on_ground = True
+
+        if keys[pygame.K_SPACE] and self.on_ground:
+            self.vel_y = -15
+
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > SCREEN_WIDTH:
+            self.rect.right = SCREEN_WIDTH
+        if self.rect.bottom > SCREEN_HEIGHT:
+            self.rect.bottom = SCREEN_HEIGHT
+            self.vel_y = 0
+            self.on_ground = True
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, width, height, image_path=None):
+        super().__init__()
+        if image_path and os.path.exists(image_path):
+            self.image = pygame.image.load(image_path)
+            self.image = pygame.transform.scale(self.image, (width, height))
+        else:
+            self.image = pygame.Surface((width, height))
+            self.image.fill(BROWN)
+        
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Платформер")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        
+        if os.path.exists("images/background.png"):
+            self.background = pygame.image.load("images/background.png")
+            self.background = pygame.transform.scale(self.background, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        else:
+            self.background = None
+
+        self.platforms = pygame.sprite.Group()
+        platform_data = [
+            (0, SCREEN_HEIGHT - 40, SCREEN_WIDTH, 40, "images/platform.png"), 
+            (200, 500, 100, 20, "images/platform.png"),
+            (500, 400, 100, 20, "images/platform.png"),
+            (100, 300, 100, 20, "images/platform.png"),
+            (600, 250, 100, 20, "images/platform.png"),
+            (350, 200, 100, 20, "images/platform.png"),
+        ]
+        
+        for x, y, w, h, img in platform_data:
+            self.platforms.add(Platform(x, y, w, h, img))
+        
+  
+        self.player = Player(100, SCREEN_HEIGHT - 80, "images/player.png")
+        
+        self.win = False
+        self.font = pygame.font.Font(None, 74)
+        self.small_font = pygame.font.Font(None, 36)
+
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r and self.win:
+                    self.__init__()
+
+    def update(self):
+        if not self.win:
+            self.player.update(self.platforms)
+            
+            if self.player.rect.x > SCREEN_WIDTH - 100 and self.player.rect.y < 100:
+                self.win = True
+
+    def draw(self):
+        if self.background:
+            self.screen.blit(self.background, (0, 0))
+        else:
+            self.screen.fill(BLUE)
+        
+        self.platforms.draw(self.screen)
+        
+        self.screen.blit(self.player.image, self.player.rect)
+        
+        if self.win:
+            win_text = self.font.render("ПОБЕДА!", True, WHITE)
+            restart_text = self.small_font.render("Нажми R для перезапуска", True, WHITE)
+            self.screen.blit(win_text, (SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 50))
+            self.screen.blit(restart_text, (SCREEN_WIDTH//2 - 150, SCREEN_HEIGHT//2 + 20))
+        else:
+            hint = self.small_font.render("Стрелки + ПРОБЕЛ. Дойди до правого верхнего угла", True, WHITE)
+            self.screen.blit(hint, (10, 10))
+        
+        pygame.display.flip()
+
+    def run(self):
+        while self.running:
+            self.handle_events()
+            self.update()
+            self.draw()
+            self.clock.tick(FPS)
+        
+        pygame.quit()
+
+if __name__ == "__main__":
+    if not os.path.exists("images"):
+        os.makedirs("images")
+        print("Создана папка 'images'")
+        print("Положите туда картинки:")
+        print("- player.png (40x40)")
+        print("- background.png (800x600)")
+        print("- platform.png (100x20 или другие размеры)")
+    
+    game = Game()
+    game.run()
